@@ -88,9 +88,9 @@ export class SimulationExtHostToolsService extends BaseToolsService implements I
 				return result;
 			}
 
-			const r = await raceTimeout(Promise.resolve(this._inner.invokeTool(name, options, token)), 60_000);
+			const r = await raceTimeout(Promise.resolve(this._inner.invokeTool(name, options, token)), 600_000);
 			if (!r) {
-				throw new Error(`Tool call timed out after 60 seconds`);
+				throw new Error(`Tool call timed out after 600 seconds`);
 			}
 			return r;
 		} catch (e) {
