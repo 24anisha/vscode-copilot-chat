@@ -390,7 +390,12 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 					'ask';
 	}
 
-	public sendToolCallingTelemetry(toolCallRounds: IToolCallRound[], availableTools: readonly vscode.LanguageModelToolInformation[], responseType: ChatFetchResponseType | 'cancelled' | 'maxToolCalls'): void {
+	public sendToolCallingTelemetry(
+		toolCallRounds: IToolCallRound[],
+		availableTools: readonly vscode.LanguageModelToolInformation[],
+		responseType: ChatFetchResponseType | 'cancelled' | 'maxToolCalls',
+		toolCallResults?: Record<string, vscode.LanguageModelToolResult2>
+	): void {
 		if (availableTools.length === 0) {
 			return;
 		}
@@ -456,10 +461,31 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 			availableTools: JSON.stringify(availableTools.map(tool => tool.name))
 		}, toolCallMeasurements);
 
+		// Create trajectory data for enhanced telemetry
+		const toolTrajectory = toolCallRounds.map(round => ({
+			roundId: round.id,
+			response: round.response,
+			toolCalls: round.toolCalls.map(call => ({
+				id: call.id,
+				name: call.name,
+				arguments: call.arguments,
+				result: toolCallResults?.[call.id] ? {
+					content: toolCallResults[call.id].content?.map(part => {
+						if ('value' in part && typeof part.value === 'string') {
+							return { type: 'text', value: part.value };
+						} else {
+							return { type: 'other', value: 'Non-text content omitted' };
+						}
+					}) || []
+				} : undefined
+			}))
+		}));
+
 		this._telemetryService.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', {
 			...toolCallProperties,
 			messageId: this.telemetryMessageId,
-			availableTools: JSON.stringify(availableTools.map(tool => tool.name))
+			availableTools: JSON.stringify(availableTools.map(tool => tool.name)),
+			toolTrajectory: JSON.stringify(toolTrajectory)
 		}, toolCallMeasurements);
 
 	}
