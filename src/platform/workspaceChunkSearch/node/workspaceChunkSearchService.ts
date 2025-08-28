@@ -278,6 +278,17 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 				});
 			}
 		}));
+
+		/* __GDPR__
+			"workspaceChunkSearch.created" : {
+				"owner": "mjbvz",
+				"comment": "Metadata about workspace chunk search",
+				"embeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of embeddings used" }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('workspaceChunkSearch.created', {
+			embeddingType: this._embeddingType.id,
+		});
 	}
 
 	public override dispose(): void {
@@ -353,6 +364,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 					"comment": "Understanding which workspace chunk search strategy is used",
 					"strategy": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chosen strategy" },
 					"errorDiagMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason why the search failed" },
+					"embeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "The type of embeddings used" },
 					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
 					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 					"execTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total time in ms for workspace chunk search" },
@@ -363,6 +375,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 			this._telemetryService.sendMSFTTelemetryEvent('workspaceChunkSearchStrategy', {
 				strategy: searchResult.isOk() ? searchResult.val.strategy : 'none',
 				errorDiagMessage: searchResult.isError() ? searchResult.err.errorDiagMessage : undefined,
+				embeddingType: this._embeddingType.id,
 				workspaceSearchSource: telemetryInfo.callTracker.toString(),
 				workspaceSearchCorrelationId: telemetryInfo.correlationId,
 			}, {
@@ -407,6 +420,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 					"owner": "mjbvz",
 					"comment": "Total time for searchFileChunks to complete",
 					"status": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "If the call succeeded or failed" },
+					"embeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of embeddings used" },
 					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
 					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 					"execTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Time in milliseconds that the call took" }
@@ -414,6 +428,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('workspaceChunkSearch.perf.searchFileChunks', {
 				status,
+				embeddingType: this._embeddingType.id,
 				workspaceSearchSource: telemetryInfo.callTracker.toString(),
 				workspaceSearchCorrelationId: telemetryInfo.correlationId,
 			}, {
@@ -766,6 +781,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 					"owner": "mjbvz",
 					"comment": "Understanding how effective ADA re-ranking is",
 					"status": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "If the call succeeded or failed" },
+					"embeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of embeddings used" },
 					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
 					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 					"execTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Time in milliseconds that the call took" }
@@ -773,19 +789,15 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('workspaceChunkSearch.perf.adaRerank', {
 				status,
+				embeddingType: this._embeddingType.id,
 				workspaceSearchSource: telemetryInfo.callTracker,
 				workspaceSearchCorrelationId: telemetryInfo.correlationId,
 			}, { execTime });
 		});
 	}
 
-	private async computeEmbeddings(inputType: 'query' | 'document', strings: readonly string[], token: CancellationToken): Promise<Embeddings> {
-		const embeddings = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, strings, { inputType }, new TelemetryCorrelationId('WorkspaceChunkSearchService::computeEmbeddings'), token);
-		if (!embeddings) {
-			throw new Error('Timeout computing embeddings');
-		}
-
-		return embeddings;
+	private computeEmbeddings(inputType: 'query' | 'document', strings: readonly string[], token: CancellationToken): Promise<Embeddings> {
+		return this._embeddingsComputer.computeEmbeddings(this._embeddingType, strings, { inputType }, new TelemetryCorrelationId('WorkspaceChunkSearchService::computeEmbeddings'), token);
 	}
 
 	/**
