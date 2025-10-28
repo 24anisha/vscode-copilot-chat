@@ -190,6 +190,32 @@
 				}
 			},
 			{
+				"name": "searchSubagent",
+				"toolReferenceName": "searchSubagent",
+				"displayName": "%copilot.tools.searchSubagent.name%",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "%copilot.tools.searchSubagent.description%",
+				"modelDescription": "Launch a specialized search agent that takes a natural language query and iteratively generates and executes multiple search patterns to find relevant code and files. The agent will:\n\n1. Analyze the query to understand what to search for\n2. Generate diverse search patterns (regex, glob patterns, keywords) considering different naming conventions (camelCase, snake_case, etc.)\n3. Execute searches using grep_search, file_search, and other search tools\n4. Refine patterns based on results\n5. Continue iterating (up to 15 iterations) until finding comprehensive results\n\nUse this tool when:\n- You need to find code/files but aren't sure of exact names or patterns\n- A single search won't be sufficient\n- You want systematic exploration of multiple search strategies\n- The user's query is ambiguous and requires iterative refinement\n\nThe agent will return a summary of findings including what patterns were tried and what was found.",
+				"tags": [],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "A natural language description of what to search for (e.g., 'authentication code', 'database connection logic', 'test files for user service')"
+						},
+						"description": {
+							"type": "string",
+							"description": "A short (3-5 word) summary of the search (e.g., 'find auth code', 'locate DB logic')"
+						}
+					},
+					"required": [
+						"query",
+						"description"
+					]
+				}
+			},
+			{
 				"name": "copilot_searchWorkspaceSymbols",
 				"toolReferenceName": "symbols",
 				"displayName": "%copilot.tools.searchWorkspaceSymbols.name%",

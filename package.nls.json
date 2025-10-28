@@ -355,5 +355,7 @@
 	"github.copilot.command.openCopilotAgentSessionsInBrowser": "Open in browser",
 	"github.copilot.command.closeChatSessionPullRequest.title": "Close Pull Request",
 	"copilot.tools.runSubagent.name": "Run Subagent",
-	"copilot.tools.runSubagent.description": "Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management."
+	"copilot.tools.runSubagent.description": "Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.",
+	"copilot.tools.searchSubagent.name": "Search Subagent",
+	"copilot.tools.searchSubagent.description": "Launch a specialized search agent that iteratively generates and executes search patterns to find code and files matching a natural language query."
 }

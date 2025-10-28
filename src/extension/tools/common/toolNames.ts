@@ -66,6 +66,7 @@ export enum ToolName {
 	ToolReplay = 'tool_replay',
 	EditFilesPlaceholder = 'edit_files',
 	RunSubagent = 'runSubagent',
+	SearchSubagent = 'searchSubagent',
 	CoreConfirmationTool = 'vscode_get_confirmation',
 	CoreTerminalConfirmationTool = 'vscode_get_terminal_confirmation'
 }
@@ -172,6 +173,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.CreateDirectory]: ToolCategory.Core,
 	[ToolName.ReadProjectStructure]: ToolCategory.Core,
 	[ToolName.RunSubagent]: ToolCategory.Core,
+	[ToolName.SearchSubagent]: ToolCategory.Core,
 
 	// already enabled only when tasks are enabled
 	[ToolName.CoreRunTask]: ToolCategory.Core,
