@@ -23,7 +23,7 @@ import { LanguageContextLanguages, LanguageContextOptions } from '../../../platf
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
 import { IStatelessNextEditProvider, NoNextEditReason, PushEdit, ShowNextEditPreference, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { editWouldDeleteWhatWasJustInserted, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
+import { editWouldDeleteWhatWasJustInserted, editWouldDeleteWhatWasJustInserted2, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
 import { ILanguageContextProviderService } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { ContextKind, SnippetContext } from '../../../platform/languageServer/common/languageContextService';
@@ -154,8 +154,20 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			filters.push((edits) => IgnoreWhitespaceOnlyChanges.filterEdit(activeDoc, edits));
 		}
 
-		if (this.configService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsUndoInsertionFilteringEnabled, this.expService)) {
-			filters.push((edits) => editWouldDeleteWhatWasJustInserted(activeDoc, new LineEdit(edits)) ? [] : edits);
+		const undoInsertionFiltering = this.configService.getExperimentBasedConfig(ConfigKey.Internal.InlineEditsUndoInsertionFiltering, this.expService);
+		if (undoInsertionFiltering !== undefined) {
+			let filter;
+			switch (undoInsertionFiltering) {
+				case 'v1':
+					filter = editWouldDeleteWhatWasJustInserted;
+					break;
+				case 'v2':
+					filter = editWouldDeleteWhatWasJustInserted2;
+					break;
+				default:
+					assertNever(undoInsertionFiltering);
+			}
+			filters.push((edits) => filter(activeDoc, new LineEdit(edits)) ? [] : edits);
 		}
 
 		return filters.reduce((acc, filter) => filter(acc), edits);
@@ -310,7 +322,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const userPrompt = getUserPrompt(promptPieces);
 
-		const prediction = this.getPredictedOutput(editWindowLines, promptOptions.promptingStrategy);
+		const responseFormat = xtabPromptOptions.ResponseFormat.fromPromptingStrategy(promptOptions.promptingStrategy);
+
+		const prediction = this.getPredictedOutput(editWindowLines, responseFormat);
 
 		const messages = constructMessages({
 			systemMsg: this.pickSystemPrompt(promptOptions.promptingStrategy),
@@ -349,7 +363,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			{
 				showLabel: opts.showLabel,
 				shouldRemoveCursorTagFromResponse,
-				promptingStrategy: promptOptions.promptingStrategy,
+				responseFormat,
 				retryState,
 			},
 			delaySession,
@@ -551,7 +565,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		prediction: Prediction | undefined,
 		opts: {
 			showLabel: boolean;
-			promptingStrategy: xtabPromptOptions.PromptingStrategy | undefined;
+			responseFormat: xtabPromptOptions.ResponseFormat;
 			shouldRemoveCursorTagFromResponse: boolean;
 			retryState: RetryState;
 		},
@@ -675,13 +689,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		let cleanedLinesStream: AsyncIterableObject<string>;
 
-		if (opts.promptingStrategy === xtabPromptOptions.PromptingStrategy.Xtab275) {
+		if (opts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowOnly) {
 			cleanedLinesStream = linesStream;
-		} else if (
-			opts.promptingStrategy === xtabPromptOptions.PromptingStrategy.UnifiedModel ||
-			opts.promptingStrategy === xtabPromptOptions.PromptingStrategy.Codexv21NesUnified ||
-			opts.promptingStrategy === xtabPromptOptions.PromptingStrategy.Nes41Miniv3
-		) {
+		} else if (opts.responseFormat === xtabPromptOptions.ResponseFormat.UnifiedWithXml) {
 			const linesIter = linesStream[Symbol.asyncIterator]();
 			const firstLine = await linesIter.next();
 
@@ -753,8 +763,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				pushEdit(Result.error(new NoNextEditReason.Unexpected(new Error(`unexpected tag ${trimmedLines}`))));
 				return;
 			}
-		} else {
+		} else if (opts.responseFormat === xtabPromptOptions.ResponseFormat.CodeBlock) {
 			cleanedLinesStream = linesWithBackticksRemoved(linesStream);
+		} else {
+			assertNever(opts.responseFormat);
 		}
 
 		const diffOptions: ResponseProcessor.DiffParams = {
@@ -1304,25 +1316,24 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return createProxyXtabEndpoint(this.instaService, configuredModelName);
 	}
 
-	private getPredictedOutput(editWindowLines: string[], promptingStrategy: xtabPromptOptions.PromptingStrategy | undefined): Prediction | undefined {
+	private getPredictedOutput(editWindowLines: string[], responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {
 		return this.configService.getConfig(ConfigKey.Internal.InlineEditsXtabProviderUsePrediction)
 			? {
 				type: 'content',
-				content: XtabProvider.getPredictionContents(editWindowLines, promptingStrategy)
+				content: XtabProvider.getPredictionContents(editWindowLines, responseFormat)
 			}
 			: undefined;
 	}
 
-	private static getPredictionContents(editWindowLines: readonly string[], promptingStrategy: xtabPromptOptions.PromptingStrategy | undefined): string {
-		if (promptingStrategy === xtabPromptOptions.PromptingStrategy.UnifiedModel ||
-			promptingStrategy === xtabPromptOptions.PromptingStrategy.Codexv21NesUnified ||
-			promptingStrategy === xtabPromptOptions.PromptingStrategy.Nes41Miniv3
-		) {
+	private static getPredictionContents(editWindowLines: readonly string[], responseFormat: xtabPromptOptions.ResponseFormat): string {
+		if (responseFormat === xtabPromptOptions.ResponseFormat.UnifiedWithXml) {
 			return ['<EDIT>', ...editWindowLines, '</EDIT>'].join('\n');
-		} else if (promptingStrategy === xtabPromptOptions.PromptingStrategy.Xtab275) {
+		} else if (responseFormat === xtabPromptOptions.ResponseFormat.EditWindowOnly) {
 			return editWindowLines.join('\n');
-		} else {
+		} else if (responseFormat === xtabPromptOptions.ResponseFormat.CodeBlock) {
 			return ['```', ...editWindowLines, '```'].join('\n');
+		} else {
+			assertNever(responseFormat);
 		}
 	}
 
