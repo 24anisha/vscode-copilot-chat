@@ -16,6 +16,7 @@ import { ExploreAgentProvider } from './exploreAgentProvider';
 import { GitHubOrgCustomAgentProvider } from './githubOrgCustomAgentProvider';
 import { GitHubOrgInstructionsProvider } from './githubOrgInstructionsProvider';
 import { PlanAgentProvider } from './planAgentProvider';
+import { SearchAgentProvider } from './searchAgentProvider';
 
 export class PromptFileContribution extends Disposable implements IExtensionContribution {
 	readonly id = 'PromptFiles';
@@ -65,6 +66,10 @@ export class PromptFileContribution extends Disposable implements IExtensionCont
 			// Register Explore agent provider for code research subagent
 			const exploreProvider = instantiationService.createInstance(ExploreAgentProvider);
 			this._register(vscode.chat.registerCustomAgentProvider(exploreProvider));
+
+			// Register Search agent provider for the search_subagent native .agent.md path
+			const searchProvider = instantiationService.createInstance(SearchAgentProvider);
+			this._register(vscode.chat.registerCustomAgentProvider(searchProvider));
 		}
 
 		// Register instructions provider

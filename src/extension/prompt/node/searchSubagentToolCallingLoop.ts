@@ -39,6 +39,8 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 
 	public static readonly ID = 'searchSubagentTool';
 
+	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'agentic-search-v3';
+
 	constructor(
 		options: ISearchSubagentToolCallingLoopOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -70,8 +72,6 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		context.query = this.options.promptText;
 		return context;
 	}
-
-	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'agentic-search-v3';
 
 	/**
 	 * Get the endpoint to use for the search subagent

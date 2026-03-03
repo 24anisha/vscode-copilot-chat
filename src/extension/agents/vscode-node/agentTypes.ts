@@ -31,6 +31,15 @@ export interface AgentConfig {
 	readonly agents?: string[];
 	readonly handoffs?: AgentHandoff[];
 	readonly body: string;
+	/**
+	 * A message injected as a synthetic user turn once the agent's tool-call
+	 * limit is reached.  When VS Code's native agent runtime supports the
+	 * `last-turn-message` YAML field, it will honour this automatically.
+	 * Until then, callers that manage their own tool-calling loop (e.g.
+	 * ToolCallingLoop / SearchSubagentToolCallingLoop) must read this field
+	 * and inject the message themselves on the final round.
+	 */
+	readonly lastTurnMessage?: string;
 }
 
 /**
@@ -91,6 +100,12 @@ export function buildAgentMarkdown(config: AgentConfig): string {
 	if (config.agents) {
 		const quotedAgents = config.agents.map(a => `'${a.replace(/'/g, '\'\'')}'`).join(', ');
 		lines.push(`agents: [${quotedAgents}]`);
+	}
+
+	// Last-turn message (optional) — emitted as a YAML scalar so the native
+	// agent runtime can honour it once VS Code supports the field.
+	if (config.lastTurnMessage) {
+		lines.push(`last-turn-message: '${config.lastTurnMessage.replace(/'/g, '\'\'')}'`);
 	}
 
 	// Handoffs - block style for complex nested objects
