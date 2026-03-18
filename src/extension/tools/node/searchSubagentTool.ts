@@ -118,9 +118,31 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		if (loopResult.response.type === ChatFetchResponseType.Success) {
 			subagentResponse = loopResult.toolCallRounds.at(-1)?.response ?? loopResult.round.response ?? '';
 		} else {
-			subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
+			// The final LLM turn failed (e.g. the model returned no choices due to a large context).
+			// Try to salvage a response from the last successful round that had a non-empty text response.
+			const lastSuccessfulResponse = [...loopResult.toolCallRounds].reverse().find(r => r.response.trim())?.response;
+			if (lastSuccessfulResponse) {
+				subagentResponse = lastSuccessfulResponse;
+			} else if (Object.keys(loopResult.toolCallResults).length > 0) {
+				// No usable model response, but we have tool results from earlier rounds.
+				// Return the raw tool outputs so the parent agent can still use them.
+				const toolOutputs: string[] = [];
+				for (const [, result] of Object.entries(loopResult.toolCallResults)) {
+					for (const part of result.content) {
+						if (part && typeof part === 'object' && 'value' in part && typeof part.value === 'string' && part.value.trim()) {
+							toolOutputs.push(part.value);
+						}
+					}
+				}
+				if (toolOutputs.length > 0) {
+					subagentResponse = toolOutputs.join('\n\n');
+				} else {
+					subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
+				}
+			} else {
+				subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
+			}
 		}
-
 		// Parse and hydrate code snippets from <final_answer> tags
 		const hydratedResponse = await this.parseFinalAnswerAndHydrate(subagentResponse, token);
 
