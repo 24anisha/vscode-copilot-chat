@@ -14,6 +14,17 @@ export interface WorkspaceFolderEntry {
 	readonly timestamp: number;
 }
 
+/**
+ * Serializable subset of ChatRequestModeInstructions (excludes toolReferences).
+ */
+export interface StoredModeInstructions {
+	readonly uri?: string;
+	readonly name: string;
+	readonly content: string;
+	readonly metadata?: Record<string, boolean | string | number>;
+	readonly isBuiltin?: boolean;
+}
+
 export interface RequestDetails {
 	/** VS Code request ID — always available, serves as primary key. */
 	readonly vscodeRequestId: string;
@@ -24,8 +35,17 @@ export interface RequestDetails {
 	 */
 	toolIdEditMap: { [copilotToolId: string]: string };
 
-	/** Agent used for this request. */
+	/**
+	 * @deprecated This field is deprecated in favor of modeInstructions.
+	 * Agent used for this request.
+	 * */
 	agentId?: string;
+
+	/** Mode instructions for this request (excluding toolReferences). */
+	modeInstructions?: StoredModeInstructions;
+
+	/** Checkpoint reference for this request. */
+	checkpointRef?: string;
 }
 
 export interface ChatSessionMetadataFile {
@@ -49,10 +69,12 @@ export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMet
 
 export interface IChatSessionMetadataStore {
 	readonly _serviceBrand: undefined;
+	getMetadataFileUri(sessionId: string): vscode.Uri;
 	deleteSessionMetadata(sessionId: string): Promise<void>;
 	storeWorktreeInfo(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void>;
 	storeWorkspaceFolderInfo(sessionId: string, entry: WorkspaceFolderEntry): Promise<void>;
 	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
+	getSessionIdForWorkspaceFolder(folder: vscode.Uri): Promise<string[]>;
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;

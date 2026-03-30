@@ -70,6 +70,10 @@ export class MockGitService implements IGitService {
 		return Promise.resolve();
 	}
 
+	restore(_uri: URI, _paths: string[], _options?: { staged?: boolean; ref?: string }): Promise<void> {
+		return Promise.resolve();
+	}
+
 	log(_uri: URI, _options?: LogOptions): Promise<Commit[] | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -142,6 +146,10 @@ export class MockGitService implements IGitService {
 		return Promise.resolve();
 	}
 
+	getBranch(_uri: URI, _name: string): Promise<Branch | undefined> {
+		return Promise.resolve(undefined);
+	}
+
 	getRefs(uri: URI, query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return Promise.resolve([]);
 	}
@@ -152,6 +160,10 @@ export class MockGitService implements IGitService {
 
 	generateRandomBranchName(_uri: URI): Promise<string | undefined> {
 		return Promise.resolve(undefined);
+	}
+
+	exec(uri: URI, args: string[], env?: Record<string, string>): Promise<string> {
+		return Promise.resolve('');
 	}
 
 	dispose(): void {

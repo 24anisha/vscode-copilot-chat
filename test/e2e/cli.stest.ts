@@ -21,7 +21,7 @@ import { CopilotCLIPromptResolver } from '../../src/extension/chatSessions/copil
 import { ICopilotCLISession } from '../../src/extension/chatSessions/copilotcli/node/copilotcliSession';
 import { CopilotCLISessionService, ICopilotCLISessionService } from '../../src/extension/chatSessions/copilotcli/node/copilotcliSessionService';
 import { CopilotCLISkills, ICopilotCLISkills } from '../../src/extension/chatSessions/copilotcli/node/copilotCLISkills';
-import { CopilotCLIMCPHandler, ICopilotCLIMCPHandler } from '../../src/extension/chatSessions/copilotcli/node/mcpHandler';
+import { CopilotCLIMCPHandler, ICopilotCLIMCPHandler, McpServerMappings } from '../../src/extension/chatSessions/copilotcli/node/mcpHandler';
 import { IUserQuestionHandler, UserInputRequest, UserInputResponse } from '../../src/extension/chatSessions/copilotcli/node/userInputHelpers';
 import { ChatSummarizerProvider } from '../../src/extension/prompt/node/summarizer';
 import { MockChatResponseStream, TestChatRequest } from '../../src/extension/test/node/testHelpers';
@@ -160,8 +160,8 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		constructor(options: { model?: string; workingDirectory?: Uri; workspaceInfo: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers'] }, logger: ILogService, private readonly testOptions: Pick<SessionOptions, 'authInfo' | 'copilotUrl'>) {
 			super(options, logger);
 		}
-		override toSessionOptions() {
-			const options = super.toSessionOptions();
+		override toSessionOptions(mcpServerMappings?: McpServerMappings) {
+			const options = super.toSessionOptions(mcpServerMappings);
 			const mutableOptions = options as Mutable<typeof options>;
 			mutableOptions.authInfo = this.testOptions.authInfo ?? options.authInfo;
 			mutableOptions.copilotUrl = this.testOptions.copilotUrl ?? options.copilotUrl;
@@ -246,7 +246,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		override async monitorSessionFiles() {
 			// Override to do nothing in tests
 		}
-		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspaceInfo: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers'] }): Promise<CopilotCLISessionOptions> {
+		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspaceInfo: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; sessionId?: string; debugTargetSessionIds?: readonly string[] }): Promise<CopilotCLISessionOptions> {
 			const testOptionsProvider = this.instantiationService.invokeFunction((accessor) => accessor.get(ITestSessionOptionsProvider));
 			const overrideOptions = await testOptionsProvider.getOptions();
 			const sessionOptions = new TestCopilotCLISessionOptions(options, this.logService, overrideOptions);
@@ -504,7 +504,7 @@ ssuite.skip({ title: '@cli', location: 'external' }, async (_) => {
 				const session = await new Promise<IReference<ICopilotCLISession>>((resolve, reject) => {
 					const interval = disposables.add(new IntervalTimer());
 					interval.cancelAndSet(async () => {
-						const session = await sessionService.getSession(sessionId, { readonly: false, ...sessionOptionsFor(workingDirectory) }, CancellationToken.None);
+						const session = await sessionService.getSession({ sessionId, readonly: false, ...sessionOptionsFor(workingDirectory) }, CancellationToken.None);
 						if (session) {
 							interval.dispose();
 							resolve(session);

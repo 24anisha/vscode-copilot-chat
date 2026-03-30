@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatContext, ChatParticipantToolToken } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
+import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
@@ -21,6 +22,7 @@ import { IInstantiationService } from '../../../../../util/vs/platform/instantia
 import { ChatSessionStatus, ChatToolInvocationPart, Uri } from '../../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { MockChatResponseStream } from '../../../../test/node/testHelpers';
+import { IChatPromptFileService } from '../../../common/chatPromptFileService';
 import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
@@ -113,8 +115,9 @@ class MockSdkSession {
 	async send(options: { prompt: string; mode?: string }) {
 		this.lastSendOptions = options;
 		// Simulate a normal successful turn with a message
+		this.emit('user.message', { content: options.prompt });
 		this.emit('assistant.turn_start', {});
-		this.emit('assistant.message', { content: `Echo: ${options.prompt}` });
+		this.emit('assistant.message', { messageId: `msg_${Date.now()}`, content: `Echo: ${options.prompt}` });
 		this.emit('assistant.turn_end', {});
 	}
 
@@ -230,7 +233,9 @@ describe('CopilotCLISession', () => {
 			new NullICopilotCLIImageSupport(),
 			toolsService,
 			new FakeUserQuestionHandler(),
-			configurationService
+			configurationService,
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			new class extends mock<IChatPromptFileService>() { override get customAgentPromptFiles() { return []; } }(),
 		));
 	}
 
@@ -754,40 +759,6 @@ describe('CopilotCLISession', () => {
 
 			expect(sdkSession.currentMode).toBe('interactive');
 			expect(stream.output.join('\n')).toContain('Compacted conversation.');
-		});
-	});
-
-	describe('/mcp command', () => {
-		it('shows no servers message when no MCP tools are loaded', async () => {
-			sdkSession.toolMetadata = [];
-			const session = await createSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'mcp' }, [], undefined, authInfo, CancellationToken.None);
-
-			expect(stream.output.join('\n')).toContain('No MCP servers connected.');
-		});
-
-		it('lists MCP servers grouped by namespace with tool details', async () => {
-			sdkSession.toolMetadata = [
-				{ name: 'github-get_file', namespacedName: 'github/get_file', mcpServerName: 'VS Code MCP Gateway', mcpToolName: 'get_file', title: 'Get file contents', description: 'Get the contents of a file' },
-				{ name: 'github-search_code', namespacedName: 'github/search_code', mcpServerName: 'VS Code MCP Gateway', mcpToolName: 'search_code', title: 'Search code', description: 'Search for code across repos' },
-				{ name: 'playwright-navigate', namespacedName: 'playwright/navigate', mcpServerName: 'VS Code MCP Gateway', mcpToolName: 'navigate', title: 'Navigate', description: 'Navigate to a URL' },
-				{ name: 'non_mcp_tool', description: 'A built-in tool without MCP' },
-			];
-			const session = await createSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'mcp' }, [], undefined, authInfo, CancellationToken.None);
-
-			const output = stream.output.join('\n');
-			expect(output).toContain('github (2 tools)');
-			expect(output).toContain('playwright (1 tool)');
-			expect(output).toContain('**Get file contents** (`get_file`)');
-			expect(output).toContain('**Search code** (`search_code`)');
-			expect(output).toContain('**Navigate** (`navigate`)');
-			// Non-MCP tool should not appear
-			expect(output).not.toContain('non_mcp_tool');
 		});
 	});
 

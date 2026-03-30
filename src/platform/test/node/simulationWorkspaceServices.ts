@@ -786,6 +786,10 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
+	async restore(_uri: URI, _paths: string[], _options?: { staged?: boolean; ref?: string }): Promise<void> {
+		return;
+	}
+
 	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
 		return undefined;
 	}
@@ -822,6 +826,10 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
+	async getBranch(_uri: URI, _name: string): Promise<Branch | undefined> {
+		return undefined;
+	}
+
 	async getRefs(uri: URI, query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return [];
 	}
@@ -832,6 +840,10 @@ export class TestingGitService implements IGitService {
 
 	async generateRandomBranchName(_uri: URI): Promise<string | undefined> {
 		return undefined;
+	}
+
+	async exec(uri: URI, args: string[], env?: Record<string, string>): Promise<string> {
+		return '';
 	}
 }
 

@@ -142,7 +142,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		// this.extensionContext.globalState.update(WORKTREE_MEMENTO_KEY, undefined);
 	}
 
-	private getMetadataFileUri(sessionId: string): vscode.Uri {
+	public getMetadataFileUri(sessionId: string): vscode.Uri {
 		return Uri.joinPath(Uri.file(getCopilotCLISessionDir(sessionId)), 'vscode.metadata.json');
 	}
 
@@ -212,6 +212,17 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			}
 		}
 		return undefined;
+	}
+
+	async getSessionIdForWorkspaceFolder(folder: vscode.Uri): Promise<string[]> {
+		await this._intialize.value;
+		const sessionIds: string[] = [];
+		for (const [sessionId, value] of Object.entries(this._cache)) {
+			if (value.workspaceFolder?.folderPath && isEqual(vscode.Uri.file(value.workspaceFolder.folderPath), folder)) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
 	}
 
 	async getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined> {

@@ -15,6 +15,7 @@ import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
 import { EmbeddingType, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { RemoteEmbeddingsComputer } from '../../../platform/embeddings/common/remoteEmbeddingsComputer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IModelConfig } from '../../../platform/endpoint/test/node/openaiCompatibleEndpoint';
 import { TestEndpointProvider } from '../../../platform/endpoint/test/node/testEndpointProvider';
 import { IGitCommitMessageService, NoopGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
@@ -76,6 +77,8 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { IToolEmbeddingsComputer } from '../../tools/common/virtualTools/toolEmbeddingsComputer';
 import { ToolGroupingService } from '../../tools/common/virtualTools/toolGroupingService';
 import '../../tools/node/allTools';
+import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
+import { ToolDeferralService } from '../../tools/common/toolDeferralService';
 import { TestToolsService } from '../../tools/node/test/testToolsService';
 import { TestToolEmbeddingsComputer } from '../../tools/test/node/virtualTools/testVirtualTools';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
@@ -115,6 +118,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IFeedbackReporter, new SyncDescriptor(NullFeedbackReporterImpl));
 	testingServiceCollection.define(IChatMLFetcher, new SyncDescriptor(MockChatMLFetcher));
 	testingServiceCollection.define(IToolsService, new SyncDescriptor(TestToolsService, [new Set()]));
+	testingServiceCollection.define(IToolDeferralService, new ToolDeferralService());
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	testingServiceCollection.define(IClaudeCodeSdkService, new SyncDescriptor(MockClaudeCodeSdkService));
 	testingServiceCollection.define(IClaudeToolPermissionService, new SyncDescriptor(MockClaudeToolPermissionService));
@@ -156,6 +160,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDebugFileLoggerService, new SyncDescriptor(NullChatDebugFileLoggerService));
 	testingServiceCollection.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	testingServiceCollection.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
+	testingServiceCollection.define(IAutomodeService, new SyncDescriptor(NullAutomodeService));
 	return testingServiceCollection;
 }
 
@@ -183,4 +188,14 @@ class NullChatHookService implements IChatHookService {
 	async executePostToolUseHook(): Promise<undefined> {
 		return undefined;
 	}
+}
+
+class NullAutomodeService implements IAutomodeService {
+	declare readonly _serviceBrand: undefined;
+
+	async resolveAutoModeEndpoint(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+
+	invalidateRouterCache(): void { }
 }

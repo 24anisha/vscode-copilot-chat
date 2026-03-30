@@ -9,6 +9,9 @@ import { ChatSessionWorktreeProperties } from '../chatSessionWorktreeService';
 import { IWorkspaceInfo } from '../workspaceInfo';
 
 export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
+	getMetadataFileUri(sessionId: string): vscode.Uri {
+		throw new Error('Method not implemented.');
+	}
 	declare _serviceBrand: undefined;
 
 	private readonly _worktreeProperties = new Map<string, ChatSessionWorktreeProperties>();
@@ -37,6 +40,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	async getSessionIdForWorktree(_folder: vscode.Uri): Promise<string | undefined> {
 		return undefined;
+	}
+
+	async getSessionIdForWorkspaceFolder(_folder: vscode.Uri): Promise<string[]> {
+		return [];
 	}
 
 	async getWorktreeProperties(sessionIdOrFolder: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> {
