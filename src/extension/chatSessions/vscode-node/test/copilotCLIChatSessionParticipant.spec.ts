@@ -38,6 +38,7 @@ import { MockChatResponseStream, TestChatRequest } from '../../../test/node/test
 import { type IToolsService } from '../../../tools/common/toolsService';
 import { mockLanguageModelChat } from '../../../tools/node/test/searchToolTestUtils';
 import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
+import { RepositoryProperties } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService, type ChatSessionWorktreeFile, type ChatSessionWorktreeProperties, type ChatSessionWorktreePropertiesV2 } from '../../common/chatSessionWorktreeService';
@@ -50,10 +51,11 @@ import { CopilotCLISession, CopilotCLISessionInput } from '../../copilotcli/node
 import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIMCPHandler } from '../../copilotcli/node/mcpHandler';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from '../../copilotcli/node/test/testHelpers';
-import { IUserQuestionHandler, UserInputRequest, UserInputResponse } from '../../copilotcli/node/userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotcli/node/userInputHelpers';
 import { CustomSessionTitleService } from '../../copilotcli/vscode-node/customSessionTitleServiceImpl';
 import { MockChatPromptFileService } from '../../copilotcli/vscode-node/test/testHelpers';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider, CopilotCLIChatSessionParticipant } from '../copilotCLIChatSessionsContribution';
+import { ICopilotCLIFolderMruService } from '../copilotCLIFolderMru';
 import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 
@@ -125,34 +127,39 @@ class FakeToolsService extends mock<IToolsService>() {
 
 class FakeChatSessionWorkspaceFolderService extends mock<IChatSessionWorkspaceFolderService>() {
 	private _sessionWorkspaceFolders = new Map<string, vscode.Uri>();
-	private _recentFolders: { folder: vscode.Uri; lastAccessTime: number }[] = [];
+	private _sessionWorkspaceFolderRepositories = new Map<string, vscode.Uri | undefined>();
 	private _workspaceChanges = new Map<string, readonly ChatSessionWorktreeFile[] | undefined>();
-	override trackSessionWorkspaceFolder = vi.fn(async (sessionId: string, workspaceFolderUri: string) => {
+	override trackSessionWorkspaceFolder = vi.fn(async (sessionId: string, workspaceFolderUri: string, repositoryProperties?: RepositoryProperties) => {
 		this._sessionWorkspaceFolders.set(sessionId, vscode.Uri.file(workspaceFolderUri));
+		this._sessionWorkspaceFolderRepositories.set(sessionId, repositoryProperties?.repositoryPath ? vscode.Uri.file(repositoryProperties.repositoryPath) : undefined);
 	});
 	override deleteTrackedWorkspaceFolder = vi.fn(async (sessionId: string) => {
 		this._sessionWorkspaceFolders.delete(sessionId);
+		this._sessionWorkspaceFolderRepositories.delete(sessionId);
 	});
 	override getSessionWorkspaceFolder = vi.fn(async (sessionId: string): Promise<vscode.Uri | undefined> => {
 		return this._sessionWorkspaceFolders.get(sessionId);
 	});
-	override getRecentFolders = vi.fn((): Promise<{ folder: vscode.Uri; lastAccessTime: number }[]> => {
-		return Promise.resolve(this._recentFolders);
+	override getSessionWorkspaceFolderEntry = vi.fn(async (sessionId: string) => {
+		const folder = this._sessionWorkspaceFolders.get(sessionId);
+		if (!folder) {
+			return undefined;
+		}
+
+		return {
+			folderPath: folder.fsPath,
+			timestamp: Date.now()
+		};
 	});
-	override getWorkspaceChanges = vi.fn(async (workspaceFolderUri: vscode.Uri): Promise<readonly ChatSessionWorktreeFile[] | undefined> => {
-		return this._workspaceChanges.get(workspaceFolderUri.toString());
+	override getRepositoryProperties = vi.fn(async (_sessionId: string): Promise<RepositoryProperties | undefined> => {
+		return undefined;
 	});
-	setTestRecentFolders(folders: { folder: vscode.Uri; lastAccessTime: number }[]): void {
-		this._recentFolders = folders;
-	}
-	setTestSessionWorkspaceFolder(sessionId: string, folder: vscode.Uri): void {
-		this._sessionWorkspaceFolders.set(sessionId, folder);
-	}
-	setTestWorkspaceChanges(folder: vscode.Uri, changes: readonly ChatSessionWorktreeFile[] | undefined): void {
-		this._workspaceChanges.set(folder.toString(), changes);
-	}
-	override clearWorkspaceChanges(workspaceFolderUri: vscode.Uri): void {
-		this._workspaceChanges.delete(workspaceFolderUri.toString());
+	override handleRequestCompleted = vi.fn(async (_sessionId: string): Promise<void> => { });
+	override getWorkspaceChanges = vi.fn(async (sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined> => {
+		return this._workspaceChanges.get(sessionId);
+	});
+	override clearWorkspaceChanges(sessionId: string): void {
+		this._workspaceChanges.delete(sessionId);
 	}
 }
 
@@ -351,7 +358,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const fileSystem = new MockFileSystemService();
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
-			async askUserQuestion(question: UserInputRequest, toolInvocationToken: vscode.ChatParticipantToolToken, token: vscode.CancellationToken): Promise<UserInputResponse | undefined> {
+			async askUserQuestion(question: IQuestion, toolInvocationToken: vscode.ChatParticipantToolToken, token: vscode.CancellationToken): Promise<IQuestionAnswer | undefined> {
 				return undefined;
 			}
 		}
@@ -360,25 +367,22 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
 				return fn(accessor, ...args);
 			},
-			createInstance: (ctor: unknown, options: any, sdkSession: any) => {
+			createInstance: (ctor: unknown, workspaceInfo: any, agentName: any, sdkSession: any) => {
 				if (ctor === CopilotCLISessionWorkspaceTracker) {
 					return new class extends mock<CopilotCLISessionWorkspaceTracker>() {
 						override async initialize(): Promise<void> { return; }
-						override async trackSession(_sessionId: string, _operation: 'add' | 'delete'): Promise<void> {
-							return;
-						}
 						override shouldShowSession(_sessionId: string): { isOldGlobalSession?: boolean; isWorkspaceSession?: boolean } {
 							return { isOldGlobalSession: false, isWorkspaceSession: true };
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(options, sdkSession, logService, workspaceService, sdk, new MockChatSessionMetadataStore(), instantiationService, delegationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), disposables.add(new MockChatPromptFileService()));
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })));
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
 		} as unknown as IInstantiationService;
 		customSessionTitleService = new CustomSessionTitleService(new MockExtensionContext() as unknown as IVSCodeExtensionContext, accessor.get(IInstantiationService), logService, new MockChatSessionMetadataStore());
-		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService()));
+		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockChatPromptFileService())));
 
 		manager = await sessionService.getSessionManager() as unknown as MockCliSdkSessionManager;
 		contentProvider = new class extends mock<CopilotCLIChatSessionContentProvider>() {
@@ -534,7 +538,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests).toHaveLength(1);
-		expect(cliSessions[0].requests[0].input).toEqual({ command: 'compact' });
+		expect(cliSessions[0].requests[0].input).toEqual({ command: 'compact', prompt: '' });
 		expect(promptResolver.resolvePrompt).not.toHaveBeenCalled();
 	});
 
@@ -725,6 +729,9 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			override getSession = vi.fn(async () => {
 				throw new Error('Failed to load session. Unknown event type: custom.unknown.');
 			});
+			override getChatHistory = vi.fn(async () => {
+				throw new Error('Failed to load session. Unknown event type: custom.unknown.');
+			}) as unknown as ICopilotCLISessionService['getChatHistory'];
 			override createSession = vi.fn(async () => {
 				throw new Error('createSession should not be called for invalid sessions');
 			});
@@ -743,6 +750,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			configurationService,
 			customSessionTitleService,
 			new MockExtensionContext() as unknown as IVSCodeExtensionContext,
+			logService,
+			new (mock<ICopilotCLIFolderMruService>())(),
 		);
 		const invalidParticipant = new CopilotCLIChatSessionParticipant(
 			invalidContentProvider,

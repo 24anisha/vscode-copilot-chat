@@ -114,6 +114,12 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		return gitAPI.recentRepositories;
 	}
 
+	async initRepository(uri: URI): Promise<RepoContext | undefined> {
+		const gitAPI = this.gitExtensionService.getExtensionApi();
+		const repository = await gitAPI?.init(uri);
+		return repository ? GitServiceImpl.repoToRepoContext(repository) : undefined;
+	}
+
 	async getRepository(uri: URI, forceOpen = true): Promise<RepoContext | undefined> {
 		const repository = await this._getRepository(uri, forceOpen);
 		if (!repository) {
@@ -363,6 +369,12 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.getBranch(name);
+	}
+
+	async getBranchBase(uri: URI, name: string): Promise<Branch | undefined> {
+		const gitAPI = this.gitExtensionService.getExtensionApi();
+		const repository = gitAPI?.getRepository(uri);
+		return await repository?.getBranchBase(name);
 	}
 
 	async getRefs(uri: URI, query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {

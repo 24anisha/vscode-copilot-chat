@@ -22,6 +22,7 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
+import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
@@ -32,8 +33,8 @@ import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
 import { CopilotCLIChatSessionContentProvider } from '../copilotCLIChatSessions';
+import { ICopilotCLIFolderMruService } from '../copilotCLIFolderMru';
 import { ICopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
-import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
@@ -80,6 +81,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	});
 	override forkSession = vi.fn(async () => 'forked-session');
 	override tryGetPartialSesionHistory = vi.fn(async () => undefined);
+	override getChatHistory = vi.fn(async () => []);
 }
 
 class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
@@ -114,7 +116,6 @@ class TestFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
 	}));
 	override getRepositoryInfo = vi.fn(async () => ({ repository: undefined, headBranchName: undefined }));
 	override getFolderMRU = vi.fn(async () => []);
-	override deleteMRUEntry = vi.fn(async () => { });
 }
 
 class TestGitService extends mock<IGitService>() {
@@ -180,6 +181,7 @@ function createProvider() {
 	const logService = new class extends mock<ILogService>() {
 		declare readonly _serviceBrand: undefined;
 		override trace = vi.fn();
+		override debug = vi.fn();
 		override error = vi.fn();
 	}();
 
@@ -199,7 +201,8 @@ function createProvider() {
 		workspaceFolderService,
 		octoKitService,
 		logService,
-		new class extends mock<IAgentSessionsWorkspace>() { override get isAgentSessionsWorkspace() { return false; } }
+		new class extends mock<IAgentSessionsWorkspace>() { override get isAgentSessionsWorkspace() { return false; } },
+		new (mock<ICopilotCLIFolderMruService>())(),
 	);
 
 	return {

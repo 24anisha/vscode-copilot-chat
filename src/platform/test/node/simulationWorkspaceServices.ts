@@ -697,6 +697,10 @@ export class TestingGitService implements IGitService {
 		return [];
 	}
 
+	async initRepository(_uri: URI): Promise<RepoContext | undefined> {
+		return Promise.resolve(undefined);
+	}
+
 	async initialize() {
 		return undefined;
 	}
@@ -752,6 +756,10 @@ export class TestingGitService implements IGitService {
 
 	async diffBetween(uri: URI, ref1: string, ref2: string): Promise<Change[]> {
 		return [];
+	}
+
+	getBranchBase(_uri: URI, _name: string): Promise<Branch | undefined> {
+		return Promise.resolve(undefined);
 	}
 
 	async diffBetweenWithStats(uri: URI, ref1: string, ref2: string, path?: string): Promise<DiffChange[] | undefined> {
