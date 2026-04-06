@@ -66,7 +66,8 @@ export class ExploreAgentProvider extends Disposable implements vscode.ChatCusto
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.exploreAgent.defaultModel') ||
-				e.affectsConfiguration(ConfigKey.ExploreAgentModel.fullyQualifiedId)) {
+				e.affectsConfiguration(ConfigKey.ExploreAgentModel.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId)) {
 				this._onDidChangeCustomAgents.fire();
 			}
 		}));
