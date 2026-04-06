@@ -64,10 +64,26 @@ export class PromptFileContribution extends Disposable implements IExtensionCont
 			this._register(vscode.chat.registerCustomAgentProvider(askProvider));
 
 			// Register Explore agent provider for code research subagent
-			if (configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService)) {
-				const exploreProvider = instantiationService.createInstance(ExploreAgentProvider);
-				this._register(vscode.chat.registerCustomAgentProvider(exploreProvider));
-			}
+			const exploreProviderRegistration = this._register(new MutableDisposable<vscode.Disposable>());
+			const updateExploreProvider = () => {
+				const isEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+				if (isEnabled) {
+					if (!exploreProviderRegistration.value) {
+						exploreProviderRegistration.value = vscode.chat.registerCustomAgentProvider(instantiationService.createInstance(ExploreAgentProvider));
+					}
+				} else {
+					exploreProviderRegistration.clear();
+				}
+			};
+			updateExploreProvider();
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId)) {
+					updateExploreProvider();
+				}
+			}));
+			this._register(experimentationService.onDidTreatmentsChange(() => {
+				updateExploreProvider();
+			}));
 		}
 
 		// Register instructions provider
